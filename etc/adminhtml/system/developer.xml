@@ -1,0 +1,33 @@
+<?xml version="1.0"?>
+
+<!-- Copyright © Klevu Oy. All rights reserved. See LICENSE.txt for license details. -->
+
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="urn:magento:module:Magento_Config:etc/system_include.xsd">
+    <group id="product">
+        <field id="append_reservations_action"
+               translate="label comment tooltip"
+               sortOrder="100"
+               type="select"
+               showInDefault="1"
+               showInWebsite="0"
+               showInStore="0"
+               canRestore="1">
+            <label>Append Reservations Action</label>
+            <source_model>Klevu\IndexingMsi\Model\Source\AppendReservationsActionOptions</source_model>
+            <comment><![CDATA[
+                Determines how indexing responds to stock reservations being placed, such as during the checkout process.
+                Changing this option may improve performance at times of high traffic, but may cause stock changes to be
+                missed during indexing]]></comment>
+            <tooltip><![CDATA[
+                <strong>Calculate Requires Update</strong> : Calculates current stock status for products and defers
+                    determination of whether to mark for an indexing update<br />
+                <strong>Mark All For Update</strong> : Marks all affected products for update in next sync, regardless
+                    of whether stock status has changed<br />
+                <strong>No Action</strong> : Performs no action and relies on manual update or automated discovery to
+                    queue products for sync
+                ]]></tooltip>
+            <config_path>klevu/indexing/append_reservations_action</config_path>
+        </field>
+    </group>
+</config>
