@@ -1,0 +1,31 @@
+<?xml version="1.0"?>
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="urn:magento:framework:ObjectManager/etc/config.xsd">
+
+    <!-- Preferences -->
+    <preference for="Klevu\IndexingMsi\Service\Action\MarkReservationsForUpdateInterface"
+                type="Klevu\IndexingMsi\Service\Action\MarkReservationsForUpdate" />
+    <preference for="Klevu\IndexingMsi\Service\Provider\ApiKeysProviderInterface"
+                type="Klevu\IndexingMsi\Service\Provider\ApiKeysProvider" />
+
+    <!-- DI -->
+    <type name="Klevu\IndexingMsi\Service\Provider\ApiKeysProvider">
+        <arguments>
+            <argument name="logger" xsi:type="object">Klevu\Indexing\Logger\Logger</argument>
+        </arguments>
+    </type>
+
+    <type name="Klevu\IndexingMsi\Plugin\InventoryReservations\Model\AppendReservations\SetRequiresUpdatePlugin">
+        <arguments>
+            <argument name="logger" xsi:type="object">Klevu\Indexing\Logger\Logger</argument>
+        </arguments>
+    </type>
+
+    <!-- Plugins -->
+    <type name="Magento\InventoryReservations\Model\AppendReservations">
+        <plugin name="Klevu_IndexingMsi::AppendReservationsMarkForUpdatePlugin"
+                type="Klevu\IndexingMsi\Plugin\InventoryReservations\Model\AppendReservations\MarkForUpdatePlugin"/>
+        <plugin name="Klevu_IndexingMsi::AppendReservationsRequiresUpdatePlugin"
+                type="Klevu\IndexingMsi\Plugin\InventoryReservations\Model\AppendReservations\SetRequiresUpdatePlugin"/>
+    </type>
+
+</config>
