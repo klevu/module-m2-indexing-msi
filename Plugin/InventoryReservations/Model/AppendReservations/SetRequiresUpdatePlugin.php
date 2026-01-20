@@ -15,15 +15,16 @@ use Klevu\IndexingApi\Service\Provider\TargetParentIdsProviderInterface;
 use Klevu\IndexingMsi\Model\Source\AppendReservationsAction;
 use Klevu\IndexingMsi\Service\Action\MarkReservationsForUpdateInterface;
 use Klevu\IndexingMsi\Service\Provider\ApiKeysProviderInterface;
+use Klevu\IndexingProducts\Exception\ConflictingStockStatusesForTargetIdsException;
 use Klevu\IndexingProducts\Service\Determiner\RequiresUpdateCriteria\StockStatus as StockStatusCriteria;
 use Klevu\IndexingProducts\Service\Provider\ProductStockStatusProviderInterface;
-use Magento\Catalog\Api\Data\ProductInterface;
+use Klevu\IndexingProducts\Service\Provider\TargetIdsToRequireUpdateByStockStatusProviderInterface;
 use Magento\Catalog\Api\ProductRepositoryInterface;
 use Magento\Framework\App\Config\ScopeConfigInterface;
+use Magento\Framework\App\ObjectManager;
 use Magento\Framework\Exception\NoSuchEntityException;
 use Magento\InventoryReservations\Model\AppendReservations;
 use Magento\InventoryReservationsApi\Model\ReservationInterface;
-use Magento\Store\Api\Data\StoreInterface;
 use Psr\Log\LoggerInterface;
 
 class SetRequiresUpdatePlugin
@@ -51,14 +52,6 @@ class SetRequiresUpdatePlugin
      */
     private readonly StockStatusCriteria $stockStatusCriteria;
     /**
-     * @var ProductRepositoryInterface
-     */
-    private readonly ProductRepositoryInterface $productRepository;
-    /**
-     * @var ProductStockStatusProviderInterface
-     */
-    private readonly ProductStockStatusProviderInterface $productStockStatusProvider;
-    /**
      * @var SetIndexingEntitiesToRequireUpdateActionInterface
      */
     private readonly SetIndexingEntitiesToRequireUpdateActionInterface $setIndexingEntitiesToRequireUpdateAction;
@@ -67,9 +60,9 @@ class SetRequiresUpdatePlugin
      */
     private readonly MarkReservationsForUpdateInterface $markReservationsForUpdateAction;
     /**
-     * @var TargetParentIdsProviderInterface
+     * @var TargetIdsToRequireUpdateByStockStatusProviderInterface
      */
-    private readonly TargetParentIdsProviderInterface $targetParentIdsProvider;
+    private readonly TargetIdsToRequireUpdateByStockStatusProviderInterface $targetIdsToRequireUpdateByStockStatusProvider; // phpcs:ignore Generic.Files.LineLength.TooLong
 
     /**
      * @param LoggerInterface $logger
@@ -82,6 +75,7 @@ class SetRequiresUpdatePlugin
      * @param SetIndexingEntitiesToRequireUpdateActionInterface $setIndexingEntitiesToRequireUpdateAction
      * @param MarkReservationsForUpdateInterface $markReservationsForUpdateAction
      * @param TargetParentIdsProviderInterface $targetParentIdsProvider
+     * @param TargetIdsToRequireUpdateByStockStatusProviderInterface|null $targetIdsToRequireUpdateByStockStatusProvider
      */
     public function __construct(
         LoggerInterface $logger,
@@ -89,22 +83,24 @@ class SetRequiresUpdatePlugin
         ApiKeysProviderInterface $apiKeysProvider,
         StoresProviderInterface $storesProvider,
         StockStatusCriteria $stockStatusCriteria,
-        ProductRepositoryInterface $productRepository,
-        ProductStockStatusProviderInterface $productStockStatusProvider,
+        ProductRepositoryInterface $productRepository, // phpcs:ignore SlevomatCodingStandard.Functions.UnusedParameter.UnusedParameter, Generic.Files.LineLength.TooLong
+        ProductStockStatusProviderInterface $productStockStatusProvider, // phpcs:ignore SlevomatCodingStandard.Functions.UnusedParameter.UnusedParameter, Generic.Files.LineLength.TooLong
         SetIndexingEntitiesToRequireUpdateActionInterface $setIndexingEntitiesToRequireUpdateAction,
         MarkReservationsForUpdateInterface $markReservationsForUpdateAction,
-        TargetParentIdsProviderInterface $targetParentIdsProvider,
+        TargetParentIdsProviderInterface $targetParentIdsProvider, // phpcs:ignore SlevomatCodingStandard.Functions.UnusedParameter.UnusedParameter, Generic.Files.LineLength.TooLong
+        ?TargetIdsToRequireUpdateByStockStatusProviderInterface $targetIdsToRequireUpdateByStockStatusProvider = null,
     ) {
         $this->logger = $logger;
         $this->scopeConfig = $scopeConfig;
         $this->apiKeysProvider = $apiKeysProvider;
         $this->storesProvider = $storesProvider;
         $this->stockStatusCriteria = $stockStatusCriteria;
-        $this->productRepository = $productRepository;
-        $this->productStockStatusProvider = $productStockStatusProvider;
         $this->setIndexingEntitiesToRequireUpdateAction = $setIndexingEntitiesToRequireUpdateAction;
         $this->markReservationsForUpdateAction = $markReservationsForUpdateAction;
-        $this->targetParentIdsProvider = $targetParentIdsProvider;
+
+        $objectManager = ObjectManager::getInstance();
+        $this->targetIdsToRequireUpdateByStockStatusProvider = $targetIdsToRequireUpdateByStockStatusProvider
+            ?? $objectManager->get(TargetIdsToRequireUpdateByStockStatusProviderInterface::class);
     }
 
     /**
@@ -193,36 +189,16 @@ class SetRequiresUpdatePlugin
         }
 
         foreach ($apiKeys[$stockId] as $apiKey) {
-            $product = $this->productRepository->get(
-                sku: $sku,
-            );
             $stores = $this->storesProvider->get(
                 apiKey: $apiKey,
             );
-            $parentIds = $this->targetParentIdsProvider->get(
-                entityType: 'KLEVU_PRODUCT',
-                targetId: (int)$product->getId(),
-            );
 
-            $targetIdsForUpdateByStore = [];
-            foreach ($stores as $store) {
-                $parentProducts = array_map(
-                    callback: fn (int $parentId): ProductInterface => $this->productRepository->getById(
-                        productId: $parentId,
-                        storeId: (int)$store->getId(),
-                    ),
-                    array: $parentIds,
+            try {
+                $targetIdsToRequireUpdate = $this->targetIdsToRequireUpdateByStockStatusProvider->getBySku(
+                    sku: $sku,
+                    stores: $stores,
                 );
-
-                $targetIdsForUpdateByStore[$store->getId()] = $this->determineTargetIdsToUpdate(
-                    product: $product,
-                    store: $store,
-                    parentProducts: $parentProducts,
-                );
-            }
-            $entityIdsForUpdate = $this->mergeTargetIdsForUpdateByStore($targetIdsForUpdateByStore);
-
-            if ($this->hasConflictingStockStatusesForUpdate($entityIdsForUpdate)) {
+            } catch (ConflictingStockStatusesForTargetIdsException $exception) {
                 $this->logger->warning(
                     message: 'Conflicting orig stock status for stores; marking record for update',
                     context: [
@@ -230,139 +206,31 @@ class SetRequiresUpdatePlugin
                         'stockId' => $reservation->getStockId(),
                         'sku' => $reservation->getSku(),
                         'apiKeys' => $apiKeys,
-                        'entityIdsForUpdate' => $entityIdsForUpdate,
+                        'targetIdsByStockStatus' => $exception->getTargetIdsByStockStatus(),
                     ],
                 );
 
                 $this->markReservationsForUpdateAction->execute(
                     reservations: [$reservation],
                 );
-                break;
+
+                continue;
             }
 
-            foreach ($entityIdsForUpdate as $stockStatus => $targetIds) {
-                if (!$targetIds) {
+            foreach ($targetIdsToRequireUpdate as $stockStatus => $targetIdItems) {
+                if (!$targetIdItems) {
                     continue;
                 }
 
                 $this->setIndexingEntitiesToRequireUpdateAction->execute(
                     entityType: 'KLEVU_PRODUCT',
                     apiKey: $apiKey,
-                    targetIds: $targetIds,
+                    targetIds: $targetIdItems,
                     origValues: [
                         $this->stockStatusCriteria->getCriteriaIdentifier() => (bool)$stockStatus,
                     ],
                 );
             }
         }
-    }
-
-    /**
-     * @param ProductInterface $product
-     * @param StoreInterface $store
-     * @param ProductInterface[] $parentProducts
-     *
-     * @return array<int, array<string, array<int|null>>>
-     */
-    private function determineTargetIdsToUpdate(
-        ProductInterface $product,
-        StoreInterface $store,
-        array $parentProducts,
-    ): array {
-        $entityIdsForUpdate = [
-            0 => [],
-            1 => [],
-        ];
-
-        $origStockStatusForStandalone = $this->productStockStatusProvider->get(
-            product: $product,
-            store: $store,
-            parentProduct: null,
-        );
-        $entityIdsForUpdate[(int)$origStockStatusForStandalone][] = [
-            SetIndexingEntitiesToRequireUpdateActionInterface::ENTITY_IDS_KEY_TARGET_ID => (int)$product->getId(),
-            SetIndexingEntitiesToRequireUpdateActionInterface::ENTITY_IDS_KEY_TARGET_PARENT_ID => null,
-        ];
-
-        foreach ($parentProducts as $parentProduct) {
-            $origStockStatusForVariant = $this->productStockStatusProvider->get(
-                product: $product,
-                store: $store,
-                parentProduct: $parentProduct,
-            );
-            $entityIdsForUpdate[(int)$origStockStatusForVariant][] = [
-                SetIndexingEntitiesToRequireUpdateActionInterface::ENTITY_IDS_KEY_TARGET_ID => (int)$product->getId(),
-                SetIndexingEntitiesToRequireUpdateActionInterface::ENTITY_IDS_KEY_TARGET_PARENT_ID => (int)$parentProduct->getId(), // phpcs:ignore Generic.Files.LineLength.TooLong
-            ];
-
-            $origStockStatusForParent = $this->productStockStatusProvider->get(
-                product: $parentProduct,
-                store: $store,
-                parentProduct: null,
-            );
-            $entityIdsForUpdate[(int)$origStockStatusForParent][] = [
-                SetIndexingEntitiesToRequireUpdateActionInterface::ENTITY_IDS_KEY_TARGET_ID => (int)$parentProduct->getId(), // phpcs:ignore Generic.Files.LineLength.TooLong
-                SetIndexingEntitiesToRequireUpdateActionInterface::ENTITY_IDS_KEY_TARGET_PARENT_ID => null,
-            ];
-        }
-
-        return $entityIdsForUpdate;
-    }
-
-    /**
-     * @param array<int, array<int, array<string, array<int|null>>>> $targetIdsForUpdateByStore
-     *
-     * @return array<int, array<string, array<int|null>>>
-     */
-    private function mergeTargetIdsForUpdateByStore(
-        array $targetIdsForUpdateByStore,
-    ): array {
-        $return = [
-            0 => [],
-            1 => [],
-        ];
-
-        foreach ($targetIdsForUpdateByStore as $entityIdsForUpdate) {
-            foreach ($entityIdsForUpdate as $stockStatusFlag => $entityIdsItems) {
-                foreach ($entityIdsItems as $entityIdsItem) {
-                    if (in_array($entityIdsItem, $return[$stockStatusFlag], true)) {
-                        continue;
-                    }
-
-                    $return[$stockStatusFlag][] = $entityIdsItem;
-                }
-            }
-        }
-
-        return $return;
-    }
-
-    /**
-     * @param array<int, array<string, array<int|null>>> $entityIdsForUpdate
-     *
-     * @return bool
-     */
-    private function hasConflictingStockStatusesForUpdate(
-        array $entityIdsForUpdate,
-    ): bool {
-        if (empty($entityIdsForUpdate[0]) || empty($entityIdsForUpdate[1])) {
-            return false;
-        }
-
-        $entityIdsCompact = [
-            0 => [],
-            1 => [],
-        ];
-        foreach ($entityIdsForUpdate as $stockStatusKey => $entityIdItems) {
-            $entityIdsCompact[$stockStatusKey] = array_map(
-                callback: static fn (array $entityIdItem): string => implode('::', $entityIdItem),
-                array: $entityIdItems,
-            );
-        }
-
-        return !!array_intersect(
-            $entityIdsCompact[0],
-            $entityIdsCompact[1],
-        );
     }
 }

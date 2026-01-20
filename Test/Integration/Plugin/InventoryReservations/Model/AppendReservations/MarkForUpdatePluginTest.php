@@ -262,7 +262,6 @@ class MarkForUpdatePluginTest extends TestCase
      *           ["no_action"]
      *           ["does_not_exist"]
      *           [null]
-     * @group wip
      */
     public function testAfterExecute_DisabledByConfig(
         ?string $appendReservationsActionConfigValue,
