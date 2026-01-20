@@ -16,6 +16,7 @@ use Klevu\IndexingApi\Model\Source\Actions;
 use Klevu\IndexingMsi\Model\Source\AppendReservationsAction;
 use Klevu\IndexingMsi\Plugin\InventoryReservations\Model\AppendReservations\SetRequiresUpdatePlugin;
 use Klevu\IndexingProducts\Service\Determiner\RequiresUpdateCriteria\StockStatus;
+use Klevu\IndexingProducts\Service\Provider\TargetIdsToRequireUpdateByStockStatusProvider;
 use Klevu\TestFixtures\Catalog\AttributeTrait;
 use Klevu\TestFixtures\Catalog\ProductTrait;
 use Klevu\TestFixtures\Store\StoreTrait;
@@ -248,7 +249,7 @@ class SetRequiresUpdatePluginTest extends TestCase
             scopeId: (int)$storeFixture->getId(),
         );
 
-        $this->createProduct(
+        $this->createProductWithStockRegistry(
             productData: [
                 'key' => 'klevu_test_msirequiresupdate',
                 'sku' => 'klevu_test_msirequiresupdate',
@@ -257,6 +258,7 @@ class SetRequiresUpdatePluginTest extends TestCase
                 'status' => ProductStatus::STATUS_ENABLED,
                 'visibility' => ProductVisibility::VISIBILITY_BOTH,
                 'qty' => 1.0,
+                'in_stock' => true,
                 'weight' => 1.0,
                 'type_id' => ProductType::TYPE_SIMPLE,
             ],
@@ -366,7 +368,7 @@ class SetRequiresUpdatePluginTest extends TestCase
             scopeId: (int)$storeFixture->getId(),
         );
 
-        $this->createProduct(
+        $this->createProductWithStockRegistry(
             productData: [
                 'key' => 'klevu_test_msirequiresupdate',
                 'sku' => 'klevu_test_msirequiresupdate',
@@ -375,6 +377,7 @@ class SetRequiresUpdatePluginTest extends TestCase
                 'status' => ProductStatus::STATUS_ENABLED,
                 'visibility' => ProductVisibility::VISIBILITY_BOTH,
                 'qty' => 1.0,
+                'in_stock' => true,
                 'weight' => 1.0,
                 'type_id' => ProductType::TYPE_SIMPLE,
             ],
@@ -528,7 +531,7 @@ class SetRequiresUpdatePluginTest extends TestCase
             scopeId: (int)$storeFixture2->getId(),
         );
 
-        $this->createProduct(
+        $this->createProductWithStockRegistry(
             productData: [
                 'key' => 'klevu_test_msirequiresupdate',
                 'sku' => 'klevu_test_msirequiresupdate',
@@ -537,6 +540,7 @@ class SetRequiresUpdatePluginTest extends TestCase
                 'status' => ProductStatus::STATUS_ENABLED,
                 'visibility' => ProductVisibility::VISIBILITY_BOTH,
                 'qty' => 1.0,
+                'in_stock' => true,
                 'weight' => 1.0,
                 'type_id' => ProductType::TYPE_SIMPLE,
             ],
@@ -673,7 +677,7 @@ class SetRequiresUpdatePluginTest extends TestCase
                             ],
                             actual: $context['apiKeys'],
                         );
-                        $this->assertArrayHasKey('entityIdsForUpdate', $context);
+                        $this->assertArrayHasKey('targetIdsByStockStatus', $context);
                         $this->assertSame(
                             expected: [
                                 0 => [
@@ -689,7 +693,7 @@ class SetRequiresUpdatePluginTest extends TestCase
                                     ],
                                 ],
                             ],
-                            actual: $context['entityIdsForUpdate'],
+                            actual: $context['targetIdsByStockStatus'],
                         );
 
                         return true;
@@ -743,7 +747,7 @@ class SetRequiresUpdatePluginTest extends TestCase
             scopeId: (int)$storeFixture2->getId(),
         );
 
-        $this->createProduct(
+        $this->createProductWithStockRegistry(
             productData: [
                 'key' => 'klevu_test_msirequiresupdate',
                 'sku' => 'klevu_test_msirequiresupdate',
@@ -752,6 +756,7 @@ class SetRequiresUpdatePluginTest extends TestCase
                 'status' => ProductStatus::STATUS_ENABLED,
                 'visibility' => ProductVisibility::VISIBILITY_BOTH,
                 'qty' => 1.0,
+                'in_stock' => true,
                 'weight' => 1.0,
                 'type_id' => ProductType::TYPE_SIMPLE,
             ],
@@ -824,13 +829,19 @@ class SetRequiresUpdatePluginTest extends TestCase
                 },
             );
 
+        $targetIdsToRequireUpdateByStockStatusProvider = $this->objectManager->create(
+            type: TargetIdsToRequireUpdateByStockStatusProvider::class,
+            arguments: [
+                'productStockStatusProvider' => $productStockStatusProviderMock,
+            ],
+        );
         $setRequiresUpdatePlugin = $this->instantiateTestObject(
             arguments: [
                 'logger' => $loggerMock,
                 'apiKeysProvider' => $apiKeysProviderMock,
-                'productStockStatusProvider' => $productStockStatusProviderMock,
                 'setIndexingEntitiesToRequireUpdateAction' => $setIndexingEntitiesToRequireUpdateActionMock,
                 'markReservationsForUpdateAction' => $markReservationsForUpdateAction,
+                'targetIdsToRequireUpdateByStockStatusProvider' => $targetIdsToRequireUpdateByStockStatusProvider,
             ],
         );
 
@@ -917,7 +928,7 @@ class SetRequiresUpdatePluginTest extends TestCase
             scopeId: (int)$storeFixture->getId(),
         );
 
-        $this->createProduct(
+        $this->createProductWithStockRegistry(
             productData: [
                 'key' => 'klevu_test_msirequiresupdate',
                 'sku' => 'klevu_test_msirequiresupdate',
@@ -926,6 +937,7 @@ class SetRequiresUpdatePluginTest extends TestCase
                 'status' => ProductStatus::STATUS_ENABLED,
                 'visibility' => ProductVisibility::VISIBILITY_BOTH,
                 'qty' => 1.0,
+                'in_stock' => true,
                 'weight' => 1.0,
                 'type_id' => ProductType::TYPE_SIMPLE,
             ],
@@ -986,6 +998,9 @@ class SetRequiresUpdatePluginTest extends TestCase
         );
     }
 
+    /**
+     * @group wip
+     */
     public function testBeforeExecute_ExceptionInSetIndexingEntitiesToUpdate(): void
     {
         $loggerMock = $this->getMockLogger(
@@ -1017,7 +1032,7 @@ class SetRequiresUpdatePluginTest extends TestCase
                             ],
                             actual: $context['apiKeys'],
                         );
-                        $this->assertArrayHasKey('entityIdsForUpdate', $context);
+                        $this->assertArrayHasKey('targetIdsByStockStatus', $context);
                         $this->assertSame(
                             expected: [
                                 0 => [
@@ -1033,7 +1048,7 @@ class SetRequiresUpdatePluginTest extends TestCase
                                     ],
                                 ],
                             ],
-                            actual: $context['entityIdsForUpdate'],
+                            actual: $context['targetIdsByStockStatus'],
                         );
 
                         return true;
@@ -1123,7 +1138,7 @@ class SetRequiresUpdatePluginTest extends TestCase
             scopeId: (int)$storeFixture2->getId(),
         );
 
-        $this->createProduct(
+        $this->createProductWithStockRegistry(
             productData: [
                 'key' => 'klevu_test_msirequiresupdate',
                 'sku' => 'klevu_test_msirequiresupdate',
@@ -1132,6 +1147,7 @@ class SetRequiresUpdatePluginTest extends TestCase
                 'status' => ProductStatus::STATUS_ENABLED,
                 'visibility' => ProductVisibility::VISIBILITY_BOTH,
                 'qty' => 1.0,
+                'in_stock' => true,
                 'weight' => 1.0,
                 'type_id' => ProductType::TYPE_SIMPLE,
             ],
@@ -1198,13 +1214,19 @@ class SetRequiresUpdatePluginTest extends TestCase
                 },
             );
 
+        $targetIdsToRequireUpdateByStockStatusProvider = $this->objectManager->create(
+            type: TargetIdsToRequireUpdateByStockStatusProvider::class,
+            arguments: [
+                'productStockStatusProvider' => $productStockStatusProviderMock,
+            ],
+        );
         $setRequiresUpdatePlugin = $this->instantiateTestObject(
             arguments: [
                 'logger' => $loggerMock,
                 'apiKeysProvider' => $apiKeysProviderMock,
-                'productStockStatusProvider' => $productStockStatusProviderMock,
                 'setIndexingEntitiesToRequireUpdateAction' => $setIndexingEntitiesToRequireUpdateActionMock,
                 'markReservationsForUpdateAction' => $markReservationsForUpdateActionMock,
+                'targetIdsToRequireUpdateByStockStatusProvider' => $targetIdsToRequireUpdateByStockStatusProvider,
             ],
         );
 
@@ -1272,7 +1294,7 @@ class SetRequiresUpdatePluginTest extends TestCase
         $attribute = $attributeFixture->getAttribute();
         $attributeSource = $attribute->getSource();
 
-        $this->createProduct(
+        $this->createProductWithStockRegistry(
             productData: [
                 'key' => 'klevu_test_msirequiresupdate',
                 'sku' => 'klevu_test_msirequiresupdate',
@@ -1281,6 +1303,7 @@ class SetRequiresUpdatePluginTest extends TestCase
                 'status' => ProductStatus::STATUS_ENABLED,
                 'visibility' => ProductVisibility::VISIBILITY_BOTH,
                 'qty' => 1.0,
+                'in_stock' => true,
                 'weight' => 1.0,
                 'type_id' => ProductType::TYPE_SIMPLE,
                 'data' => [
@@ -1289,7 +1312,7 @@ class SetRequiresUpdatePluginTest extends TestCase
             ],
         );
         $variantProductFixture = $this->productFixturePool->get('klevu_test_msirequiresupdate');
-        $this->createProduct(
+        $this->createProductWithStockRegistry(
             productData: [
                 'key' => 'klevu_test_msirequiresupdate_conf',
                 'sku' => 'klevu_test_msirequiresupdate_conf',
@@ -1303,6 +1326,8 @@ class SetRequiresUpdatePluginTest extends TestCase
                 'variants' => [
                     $variantProductFixture->getProduct(),
                 ],
+                'qty' => 1.0,
+                'in_stock' => true,
             ],
         );
         $configurableProductFixture = $this->productFixturePool->get('klevu_test_msirequiresupdate_conf');

@@ -9,6 +9,7 @@ declare(strict_types=1);
 namespace Klevu\IndexingMsi\Service\Provider;
 
 use Klevu\Configuration\Service\Provider\ApiKeysProviderInterface as BaseApiKeysProviderInterface;
+use Magento\Framework\App\ObjectManager;
 use Magento\Framework\Exception\LocalizedException;
 use Magento\InventorySales\Model\ResourceModel\GetAssignedSalesChannelsDataForStock;
 use Magento\Store\Model\StoreManagerInterface;
@@ -33,6 +34,10 @@ class ApiKeysProvider implements ApiKeysProviderInterface
      */
     private readonly BaseApiKeysProviderInterface $baseApiKeysProvider;
     /**
+     * @var StockIdsForSourceCodesProviderInterface 
+     */
+    private readonly StockIdsForSourceCodesProviderInterface $stockIdsForSourceCodesProvider;
+    /**
      * @var array<int, string[]>
      */
     private array $cachedApiKeys = [];
@@ -42,17 +47,58 @@ class ApiKeysProvider implements ApiKeysProviderInterface
      * @param GetAssignedSalesChannelsDataForStock $getAssignedSalesChannelsDataForStock
      * @param StoreManagerInterface $storeManager
      * @param BaseApiKeysProviderInterface $baseApiKeysProvider
+     * @param StockIdsForSourceCodesProviderInterface|null $stockIdsForSourceCodesProvider
      */
     public function __construct(
         LoggerInterface $logger,
         GetAssignedSalesChannelsDataForStock $getAssignedSalesChannelsDataForStock,
         StoreManagerInterface $storeManager,
         BaseApiKeysProviderInterface $baseApiKeysProvider,
+        ?StockIdsForSourceCodesProviderInterface $stockIdsForSourceCodesProvider = null,
     ) {
         $this->logger = $logger;
         $this->getAssignedSalesChannelsDataForStock = $getAssignedSalesChannelsDataForStock;
         $this->storeManager = $storeManager;
         $this->baseApiKeysProvider = $baseApiKeysProvider;
+
+        $objectManager = ObjectManager::getInstance();
+        $this->stockIdsForSourceCodesProvider = $stockIdsForSourceCodesProvider ?? $objectManager->get(
+            type: StockIdsForSourceCodesProviderInterface::class,
+        );
+    }
+
+    /**
+     * @param string[] $sourceCodes
+     *
+     * @return array<string, string[]>
+     */
+    public function getForSourceCodes(array $sourceCodes): array
+    {
+        $stockIdsForSourceCodes = $this->stockIdsForSourceCodesProvider->getForSourceCodes(
+            sourceCodes: $sourceCodes,
+        );
+        
+        $apiKeysForAllStockIds = $this->getForStockIds(
+            stockIds: array_unique(
+                array_merge([], ...array_values($stockIdsForSourceCodes)),
+            ),
+        );
+
+        $return = [];
+        foreach ($sourceCodes as $sourceCode) {
+            $return[$sourceCode] = [];
+            
+            $apiKeysForIteration = [];
+            foreach ($stockIdsForSourceCodes[$sourceCode] as $stockId) {
+                $apiKeysForIteration[] = $apiKeysForAllStockIds[$stockId];
+            }
+            
+            $return[$sourceCode] = array_unique(
+                array: array_merge([], ...$apiKeysForIteration),
+            );
+        }
+
+        return $return;
     }
 
     /**

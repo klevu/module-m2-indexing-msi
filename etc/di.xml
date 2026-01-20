@@ -6,9 +6,23 @@
                 type="Klevu\IndexingMsi\Service\Action\MarkReservationsForUpdate" />
     <preference for="Klevu\IndexingMsi\Service\Provider\ApiKeysProviderInterface"
                 type="Klevu\IndexingMsi\Service\Provider\ApiKeysProvider" />
+    <preference for="Klevu\IndexingMsi\Service\Provider\StockIdsForSourceCodesProviderInterface"
+                type="Klevu\IndexingMsi\Service\Provider\StockIdsForSourceCodesProvider" />
 
     <!-- DI -->
     <type name="Klevu\IndexingMsi\Service\Provider\ApiKeysProvider">
+        <arguments>
+            <argument name="logger" xsi:type="object">Klevu\Indexing\Logger\Logger</argument>
+        </arguments>
+    </type>
+
+    <type name="Klevu\IndexingMsi\Plugin\InventoryCatalog\Model\BulkSourceAssign\SetRequiresUpdatePlugin">
+        <arguments>
+            <argument name="logger" xsi:type="object">Klevu\Indexing\Logger\Logger</argument>
+        </arguments>
+    </type>
+
+    <type name="Klevu\IndexingMsi\Plugin\InventoryCatalog\Model\BulkSourceUnassign\SetRequiresUpdatePlugin">
         <arguments>
             <argument name="logger" xsi:type="object">Klevu\Indexing\Logger\Logger</argument>
         </arguments>
@@ -27,5 +41,12 @@
         <plugin name="Klevu_IndexingMsi::AppendReservationsRequiresUpdatePlugin"
                 type="Klevu\IndexingMsi\Plugin\InventoryReservations\Model\AppendReservations\SetRequiresUpdatePlugin"/>
     </type>
-
+    <type name="Magento\InventoryCatalog\Model\BulkSourceAssign">
+        <plugin name="Klevu_IndexingMsi::BulkSourceAssignSetRequiresUpdatePlugin"
+                type="Klevu\IndexingMsi\Plugin\InventoryCatalog\Model\BulkSourceAssign\SetRequiresUpdatePlugin"/>
+    </type>
+    <type name="Magento\InventoryCatalog\Model\BulkSourceUnassign">
+        <plugin name="Klevu_IndexingMsi::BulkSourceUnassignSetRequiresUpdatePlugin"
+                type="Klevu\IndexingMsi\Plugin\InventoryCatalog\Model\BulkSourceUnassign\SetRequiresUpdatePlugin"/>
+    </type>
 </config>

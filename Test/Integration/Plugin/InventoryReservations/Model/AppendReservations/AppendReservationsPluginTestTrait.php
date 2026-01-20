@@ -27,6 +27,7 @@ use Magento\Catalog\Model\Product\Action as ProductAction;
 use Magento\Catalog\Model\Product\Attribute\Source\Status as ProductStatus;
 use Magento\Catalog\Model\Product\Type as ProductType;
 use Magento\Catalog\Model\Product\Visibility as ProductVisibility;
+use Magento\CatalogInventory\Api\StockRegistryInterface;
 use Magento\Framework\Api\SearchCriteriaBuilder;
 use Magento\Framework\App\Config\ScopeConfigInterface;
 use Magento\Framework\App\Config\Storage\Writer as ConfigWriter;
@@ -108,6 +109,10 @@ trait AppendReservationsPluginTestTrait
      * @var StockRepositoryInterface|null
      */
     private ?StockRepositoryInterface $stockRepository = null; // @phpstan-ignore-line
+    /**
+     * @var StockRegistryInterface|null
+     */
+    private ?StockRegistryInterface $stockRegistry = null; // @phpstan-ignore-line
     /**
      * @var SalesChannelInterfaceFactory|null
      */
@@ -263,6 +268,7 @@ trait AppendReservationsPluginTestTrait
         $this->reservationFactory = $this->objectManager->get(ReservationInterfaceFactory::class);
         $this->stockFactory = $this->objectManager->get(StockInterfaceFactory::class);
         $this->stockRepository = $this->objectManager->get(StockRepositoryInterface::class);
+        $this->stockRegistry = $this->objectManager->get(StockRegistryInterface::class);
         $this->salesChannelFactory = $this->objectManager->get(SalesChannelInterfaceFactory::class);
         $this->replaceSalesChannelsForStock = $this->objectManager->get(ReplaceSalesChannelsForStockInterface::class);
         $this->deleteSalesChannelToStockLink = $this->objectManager->get(DeleteSalesChannelToStockLinkInterface::class);
@@ -725,5 +731,30 @@ trait AppendReservationsPluginTestTrait
         return $this->getMockBuilder(ProductStockStatusProviderInterface::class)
             ->disableOriginalConstructor()
             ->getMock();
+    }
+
+    /**
+     * @param array<string, mixed> $productData
+     *
+     * @return void
+     * @throws NoSuchEntityException
+     */
+    private function createProductWithStockRegistry(array $productData): void
+    {
+        $this->createProduct($productData);
+        $productFixture = $this->productFixturePool->get($productData['key']);
+
+        $product = $productFixture->getProduct();
+        $extensionAttributes = $product->getExtensionAttributes();
+        $stockItem = $extensionAttributes->getStockItem();
+
+        $stockItem->setQty($productData['qty']);
+        $stockItem->setIsInStock($productData['in_stock']);
+        $extensionAttributes->setStockItem($stockItem);
+
+        $this->stockRegistry->updateStockItemBySku(
+            productSku: $product->getSku(),
+            stockItem: $stockItem,
+        );
     }
 }

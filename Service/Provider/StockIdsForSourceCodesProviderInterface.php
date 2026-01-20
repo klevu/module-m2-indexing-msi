@@ -8,19 +8,17 @@ declare(strict_types=1);
 
 namespace Klevu\IndexingMsi\Service\Provider;
 
-interface ApiKeysProviderInterface
+interface StockIdsForSourceCodesProviderInterface
 {
     /**
      * @param string[] $sourceCodes
      *
-     * @return array<string, string[]>
+     * @return int[]
      */
     public function getForSourceCodes(array $sourceCodes): array;
 
     /**
-     * @param int[] $stockIds
-     *
-     * @return array<int, string[]>
+     * @return void
      */
-    public function getForStockIds(array $stockIds): array;
+    public function clearCache(): void;
 }
