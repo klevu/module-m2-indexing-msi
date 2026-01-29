@@ -905,7 +905,7 @@ trait BulkSourceTrait
         );
         $product->setDataUsingMethod(
             key: 'shipment_type',
-            args: 0,
+            args: 1,
         );
 
         $product = $this->productRepository->save($product);

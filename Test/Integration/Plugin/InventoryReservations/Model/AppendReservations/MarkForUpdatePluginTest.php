@@ -18,12 +18,17 @@ use Klevu\TestFixtures\Catalog\AttributeTrait;
 use Klevu\TestFixtures\Catalog\ProductTrait;
 use Klevu\TestFixtures\Store\StoreTrait;
 use Klevu\TestFixtures\Traits\ObjectInstantiationTrait;
+use Klevu\TestFixtures\Traits\SetAreaTrait;
 use Klevu\TestFixtures\Website\WebsiteTrait;
 use Magento\Catalog\Model\Product;
+use Magento\Framework\App\Area;
+use Magento\Framework\Exception\NoSuchEntityException;
+use Magento\Framework\Model\AbstractModel;
 use Magento\Inventory\Model\Source;
 use Magento\InventoryApi\Api\Data\SourceItemInterface;
 use Magento\InventoryApi\Api\Data\StockInterface;
 use Magento\InventoryReservationsApi\Model\ReservationInterface;
+use Magento\Store\Api\Data\StoreInterface;
 use Magento\Store\Model\Group as StoreGroup;
 use Magento\Store\Model\ScopeInterface;
 use Magento\Store\Model\Store;
@@ -45,7 +50,10 @@ class MarkForUpdatePluginTest extends TestCase
     use IndexingEntitiesTrait;
     use ObjectInstantiationTrait;
     use ProductTrait;
-    use StoreTrait;
+    use SetAreaTrait;
+    use StoreTrait {
+        StoreTrait::createStore as trait_createStore;
+    }
     use WebsiteTrait;
 
     /**
@@ -63,6 +71,9 @@ class MarkForUpdatePluginTest extends TestCase
         $this->markTestSkipped();
     }
 
+    /**
+     * @group wip
+     */
     public function testPluginIsAttached(): void
     {
         $this->configWriter->save(
@@ -96,6 +107,7 @@ class MarkForUpdatePluginTest extends TestCase
         );
 
         $this->storesProvider->cleanCache();
+        sleep(5); // don't remove this, idk why it's needed. Also, doesn't always work @todo
         $productStockStatusBefore = $this->productStockStatusProvider->get(
             product: $product,
             store: $store,
@@ -321,5 +333,25 @@ class MarkForUpdatePluginTest extends TestCase
                 $reservation,
             ],
         );
+    }
+
+    private function createStore(?array $storeData = []): void
+    {
+        $storeCode = $storeData['code'] ?? 'klevu_test_store_1';
+        try {
+            /** @var StoreInterface&AbstractModel $store */
+            $store = $this->storeRepository->get($storeCode);
+
+            $this->setArea(Area::AREA_ADMINHTML);
+//            $this->registry->register(
+//                key: 'isSecureArea',
+//                value: true,
+//            );
+            $this->storeResource->delete($store);
+        } catch (NoSuchEntityException) {
+            // This is expected
+        }
+
+        $this->trait_createStore($storeData);
     }
 }

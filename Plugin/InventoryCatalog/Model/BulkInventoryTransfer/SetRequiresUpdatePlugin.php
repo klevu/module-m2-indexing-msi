@@ -6,7 +6,7 @@
 
 declare(strict_types=1);
 
-namespace Klevu\IndexingMsi\Plugin\InventoryCatalog\Model\BulkSourceAssign;
+namespace Klevu\IndexingMsi\Plugin\InventoryCatalog\Model\BulkInventoryTransfer;
 
 use Klevu\Configuration\Service\Provider\StoresProviderInterface;
 use Klevu\IndexingApi\Service\Action\SetIndexingEntitiesToRequireUpdateActionInterface;
@@ -15,7 +15,7 @@ use Klevu\IndexingMsi\Service\Provider\ApiKeysProviderInterface;
 use Klevu\IndexingMsi\Service\Provider\StockIdsForSourceCodesProviderInterface;
 use Klevu\IndexingProducts\Service\Determiner\RequiresUpdateCriteria\StockStatus as StockStatusCriteria;
 use Klevu\IndexingProducts\Service\Provider\TargetIdsToRequireUpdateByStockStatusProviderInterface;
-use Magento\InventoryCatalog\Model\BulkSourceAssign;
+use Magento\InventoryCatalog\Model\BulkInventoryTransfer;
 use Psr\Log\LoggerInterface;
 
 class SetRequiresUpdatePlugin
@@ -59,22 +59,32 @@ class SetRequiresUpdatePlugin
     }
 
     /**
-     * @param BulkSourceAssign $subject
-     * @param string[] $skus
-     * @param string[] $sourceCodes
+     * @param BulkInventoryTransfer $subject
+     * @param array $skus
+     * @param string $originSource
+     * @param string $destinationSource
+     * @param bool $unassignFromOrigin
      *
-     * @return array<string[], string[]>
+     * @return array
      */
     public function beforeExecute(
-        BulkSourceAssign $subject,
+        BulkInventoryTransfer $subject,
         array $skus,
-        array $sourceCodes,
+        string $originSource,
+        string $destinationSource,
+        bool $unassignFromOrigin,
     ): array {
         $stockIdsForSourceCodes = $this->stockIdsForSourceCodesProvider->getForSourceCodes(
-            sourceCodes: $sourceCodes,
+            sourceCodes: [
+                $originSource,
+                $destinationSource,
+            ],
         );
         $apiKeysForSourceCodes = $this->apiKeysProvider->getForSourceCodes(
-            sourceCodes: $sourceCodes,
+            sourceCodes: [
+                $originSource,
+                $destinationSource,
+            ],
         );
 
         if (
@@ -82,7 +92,7 @@ class SetRequiresUpdatePlugin
             || empty($apiKeysForSourceCodes)
             || empty($stockIdsForSourceCodes)
         ) {
-            return [$skus, $sourceCodes];
+            return [$skus, $originSource, $destinationSource, $unassignFromOrigin];
         }
 
         foreach ($skus as $sku) {
@@ -108,6 +118,6 @@ class SetRequiresUpdatePlugin
             }
         }
 
-        return [$skus, $sourceCodes];
+        return [$skus, $originSource, $destinationSource, $unassignFromOrigin];
     }
 }

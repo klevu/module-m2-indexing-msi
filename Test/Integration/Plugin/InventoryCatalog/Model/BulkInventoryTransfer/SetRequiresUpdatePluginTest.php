@@ -6,16 +6,16 @@
 
 declare(strict_types=1);
 
-namespace Klevu\IndexingMsi\Test\Integration\Plugin\InventoryCatalog\Model\BulkSourceAssign;
+namespace Klevu\IndexingMsi\Test\Integration\Plugin\InventoryCatalog\Model\BulkInventoryTransfer;
 
 use Klevu\Indexing\Model\IndexingEntity;
 use Klevu\IndexingApi\Model\Source\Actions;
 use Klevu\IndexingApi\Service\Provider\IndexingEntityProviderInterface;
-use Klevu\IndexingMsi\Plugin\InventoryCatalog\Model\BulkSourceAssign\SetRequiresUpdatePlugin;
+use Klevu\IndexingMsi\Plugin\InventoryCatalog\Model\BulkInventoryTransfer\SetRequiresUpdatePlugin;
 use Klevu\IndexingMsi\Test\Integration\Plugin\InventoryCatalog\Model\BulkSourceTrait;
 use Klevu\IndexingProducts\Service\Determiner\RequiresUpdateCriteria\StockStatus as StockStatusCriteria;
 use Klevu\TestFixtures\Traits\ObjectInstantiationTrait;
-use Magento\InventoryCatalogApi\Api\BulkSourceAssignInterface;
+use Magento\InventoryCatalogApi\Api\BulkInventoryTransferInterface;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -43,7 +43,7 @@ class SetRequiresUpdatePluginTest extends TestCase
         $this->implementationFqcn = SetRequiresUpdatePlugin::class;
 
         $this->fixtureIdentifier = 'klevu_test_msirequiresupdate';
-        $this->fixtureName = 'Klevu Test: MSI BulkSourceAssign RequiresUpdate Plugin';
+        $this->fixtureName = 'Klevu Test: MSI BulkInventoryTransfer RequiresUpdate Plugin';
         $this->fixtureApiKeys = [
             1 => 'klevu-1234567890',
             2 => 'klevu-9876543210',
@@ -97,6 +97,7 @@ class SetRequiresUpdatePluginTest extends TestCase
             product: $productFixture,
             sources: [
                 $sourceAndStockFixtures[1]['source'],
+                $sourceAndStockFixtures[2]['source'],
                 $sourceAndStockFixtures[3]['source'],
             ],
             stockInformation: [
@@ -104,8 +105,12 @@ class SetRequiresUpdatePluginTest extends TestCase
                     'quantity' => 0,
                     'status' => 0,
                 ],
+                $sourceAndStockFixtures[2]['source']->getSourceCode() => [
+                    'quantity' => 100,
+                    'status' => 1,
+                ],
                 $sourceAndStockFixtures[3]['source']->getSourceCode() => [
-                    'quantity' => 1,
+                    'quantity' => 0,
                     'status' => 1,
                 ],
             ],
@@ -152,15 +157,15 @@ class SetRequiresUpdatePluginTest extends TestCase
             );
         }
 
-        /** @var BulkSourceAssignInterface $bulkSourceAssign */
-        $bulkSourceAssign = $this->objectManager->create(BulkSourceAssignInterface::class);
-        $bulkSourceAssign->execute(
+        /** @var BulkInventoryTransferInterface $bulkInventoryTransfer */
+        $bulkInventoryTransfer = $this->objectManager->create(BulkInventoryTransferInterface::class);
+        $bulkInventoryTransfer->execute(
             skus: [
                 $productFixture->getSku(),
             ],
-            sourceCodes: [
-                $sourceAndStockFixtures[2]['source']->getSourceCode(),
-            ],
+            originSource: $sourceAndStockFixtures[2]['source']->getSourceCode(),
+            destinationSource: $sourceAndStockFixtures[3]['source']->getSourceCode(),
+            unassignFromOrigin: false,
         );
 
         $indexingEntities = $this->indexingEntityProvider->get(
@@ -201,7 +206,7 @@ class SetRequiresUpdatePluginTest extends TestCase
                         key: StockStatusCriteria::CRITERIA_IDENTIFIER,
                         array: $requiresUpdateOrigValues,
                     );
-                    $this->assertFalse(
+                    $this->assertTrue(
                         condition: $requiresUpdateOrigValues[StockStatusCriteria::CRITERIA_IDENTIFIER],
                     );
                     break;
@@ -269,11 +274,21 @@ class SetRequiresUpdatePluginTest extends TestCase
             product: $variantProductFixtures[1],
             sources: [
                 $sourceAndStockFixtures[1]['source'],
+                $sourceAndStockFixtures[2]['source'],
+                $sourceAndStockFixtures[3]['source'],
             ],
             stockInformation: [
                 $sourceAndStockFixtures[1]['source']->getSourceCode() => [
-                    'quantity' => 1,
+                    'quantity' => 100,
                     'status' => 1,
+                ],
+                $sourceAndStockFixtures[2]['source']->getSourceCode() => [
+                    'quantity' => 0,
+                    'status' => 0,
+                ],
+                $sourceAndStockFixtures[3]['source']->getSourceCode() => [
+                    'quantity' => 0,
+                    'status' => 0,
                 ],
             ],
         );
@@ -291,7 +306,7 @@ class SetRequiresUpdatePluginTest extends TestCase
             ],
             stockInformation: [
                 $sourceAndStockFixtures[2]['source']->getSourceCode() => [
-                    'quantity' => 1,
+                    'quantity' => 100,
                     'status' => 1,
                 ],
             ],
@@ -384,15 +399,23 @@ class SetRequiresUpdatePluginTest extends TestCase
             );
         }
 
-        /** @var BulkSourceAssignInterface $bulkSourceAssign */
-        $bulkSourceAssign = $this->objectManager->create(BulkSourceAssignInterface::class);
-        $bulkSourceAssign->execute(
+        /** @var BulkInventoryTransferInterface $bulkInventoryTransfer */
+        $bulkInventoryTransfer = $this->objectManager->create(BulkInventoryTransferInterface::class);
+        $bulkInventoryTransfer->execute(
             skus: [
                 $variantProductFixtures[1]->getSku(),
             ],
-            sourceCodes: [
-                $sourceAndStockFixtures[2]['source']->getSourceCode(),
+            originSource: $sourceAndStockFixtures[1]['source']->getSourceCode(),
+            destinationSource: $sourceAndStockFixtures[3]['source']->getSourceCode(),
+            unassignFromOrigin: false,
+        );
+        $bulkInventoryTransfer->execute(
+            skus: [
+                $variantProductFixtures[1]->getSku(),
             ],
+            originSource: $sourceAndStockFixtures[2]['source']->getSourceCode(),
+            destinationSource: $sourceAndStockFixtures[3]['source']->getSourceCode(),
+            unassignFromOrigin: false,
         );
 
         $indexingEntities = $this->indexingEntityProvider->get(
@@ -409,28 +432,50 @@ class SetRequiresUpdatePluginTest extends TestCase
             haystack: $indexingEntities,
         );
         foreach ($indexingEntities as $indexingEntity) {
+            $message = sprintf(
+                'Product: %s; website: %s',
+                match ($indexingEntity->getTargetId()) {
+                    (int)$variantProductFixtures[1]->getId() => 'v1',
+                    (int)$variantProductFixtures[2]->getId() => 'v2',
+                    (int)$configurableProductFixture->getId() => 'c1',
+                },
+                match ($indexingEntity->getApiKey()) {
+                    $this->fixtureApiKeys[1] => 'w1',
+                    $this->fixtureApiKeys[2] => 'w2',
+                },
+            );
+
             $this->assertSame(
                 expected: Actions::NO_ACTION,
                 actual: $indexingEntity->getNextAction(),
+                message: $message,
             );
 
             switch (true) {
                 case (int)$configurableProductFixture->getId() === $indexingEntity->getTargetId()
+                    && $this->fixtureApiKeys[1] === $indexingEntity->getApiKey():
+                case (int)$variantProductFixtures[1]->getId() === $indexingEntity->getTargetId()
+                    && $this->fixtureApiKeys[1] === $indexingEntity->getApiKey():
+                case (int)$configurableProductFixture->getId() === $indexingEntity->getTargetId()
                     && $this->fixtureApiKeys[2] === $indexingEntity->getApiKey():
                     $this->assertTrue(
                         condition: $indexingEntity->getRequiresUpdate(),
+                        message: $message,
                     );
                     $requiresUpdateOrigValues = $indexingEntity->getRequiresUpdateOrigValues();
                     $this->assertCount(
                         expectedCount: 1,
                         haystack: $requiresUpdateOrigValues,
+                        message: $message,
                     );
                     $this->assertArrayHasKey(
                         key: StockStatusCriteria::CRITERIA_IDENTIFIER,
                         array: $requiresUpdateOrigValues,
+                        message: $message,
                     );
                     $this->assertTrue(
                         condition: $requiresUpdateOrigValues[StockStatusCriteria::CRITERIA_IDENTIFIER],
+                        message: $message,
                     );
                     break;
 
@@ -438,27 +483,33 @@ class SetRequiresUpdatePluginTest extends TestCase
                     && $this->fixtureApiKeys[2] === $indexingEntity->getApiKey():
                     $this->assertTrue(
                         condition: $indexingEntity->getRequiresUpdate(),
+                        message: $message,
                     );
                     $requiresUpdateOrigValues = $indexingEntity->getRequiresUpdateOrigValues();
                     $this->assertCount(
                         expectedCount: 1,
                         haystack: $requiresUpdateOrigValues,
+                        message: $message,
                     );
                     $this->assertArrayHasKey(
                         key: StockStatusCriteria::CRITERIA_IDENTIFIER,
                         array: $requiresUpdateOrigValues,
+                        message: $message,
                     );
                     $this->assertFalse(
                         condition: $requiresUpdateOrigValues[StockStatusCriteria::CRITERIA_IDENTIFIER],
+                        message: $message,
                     );
                     break;
 
                 default:
                     $this->assertFalse(
                         condition: $indexingEntity->getRequiresUpdate(),
+                        message: $message,
                     );
                     $this->assertEmpty(
                         actual: $indexingEntity->getRequiresUpdateOrigValues(),
+                        message: $message,
                     );
                     break;
             }
@@ -494,11 +545,21 @@ class SetRequiresUpdatePluginTest extends TestCase
             product: $variantProductFixtures[1],
             sources: [
                 $sourceAndStockFixtures[1]['source'],
+                $sourceAndStockFixtures[2]['source'],
+                $sourceAndStockFixtures[3]['source'],
             ],
             stockInformation: [
                 $sourceAndStockFixtures[1]['source']->getSourceCode() => [
-                    'quantity' => 1,
+                    'quantity' => 100,
                     'status' => 1,
+                ],
+                $sourceAndStockFixtures[2]['source']->getSourceCode() => [
+                    'quantity' => 0,
+                    'status' => 0,
+                ],
+                $sourceAndStockFixtures[3]['source']->getSourceCode() => [
+                    'quantity' => 0,
+                    'status' => 0,
                 ],
             ],
         );
@@ -592,15 +653,23 @@ class SetRequiresUpdatePluginTest extends TestCase
             );
         }
 
-        /** @var BulkSourceAssignInterface $bulkSourceAssign */
-        $bulkSourceAssign = $this->objectManager->create(BulkSourceAssignInterface::class);
-        $bulkSourceAssign->execute(
+        /** @var BulkInventoryTransferInterface $bulkInventoryTransfer */
+        $bulkInventoryTransfer = $this->objectManager->create(BulkInventoryTransferInterface::class);
+        $bulkInventoryTransfer->execute(
             skus: [
                 $variantProductFixtures[1]->getSku(),
             ],
-            sourceCodes: [
-                $sourceAndStockFixtures[2]['source']->getSourceCode(),
+            originSource: $sourceAndStockFixtures[1]['source']->getSourceCode(),
+            destinationSource: $sourceAndStockFixtures[3]['source']->getSourceCode(),
+            unassignFromOrigin: false,
+        );
+        $bulkInventoryTransfer->execute(
+            skus: [
+                $variantProductFixtures[1]->getSku(),
             ],
+            originSource: $sourceAndStockFixtures[2]['source']->getSourceCode(),
+            destinationSource: $sourceAndStockFixtures[3]['source']->getSourceCode(),
+            unassignFromOrigin: false,
         );
 
         $indexingEntities = $this->indexingEntityProvider->get(
@@ -617,28 +686,50 @@ class SetRequiresUpdatePluginTest extends TestCase
             haystack: $indexingEntities,
         );
         foreach ($indexingEntities as $indexingEntity) {
+            $message = sprintf(
+                'Product: %s; website: %s',
+                match ($indexingEntity->getTargetId()) {
+                    (int)$variantProductFixtures[1]->getId() => 'v1',
+                    (int)$variantProductFixtures[2]->getId() => 'v2',
+                    (int)$groupedProductFixture->getId() => 'g1',
+                },
+                match ($indexingEntity->getApiKey()) {
+                    $this->fixtureApiKeys[1] => 'w1',
+                    $this->fixtureApiKeys[2] => 'w2',
+                },
+            );
+
             $this->assertSame(
                 expected: Actions::NO_ACTION,
                 actual: $indexingEntity->getNextAction(),
+                message: $message,
             );
 
             switch (true) {
                 case (int)$groupedProductFixture->getId() === $indexingEntity->getTargetId()
+                    && $this->fixtureApiKeys[1] === $indexingEntity->getApiKey():
+                case (int)$variantProductFixtures[1]->getId() === $indexingEntity->getTargetId()
+                    && $this->fixtureApiKeys[1] === $indexingEntity->getApiKey():
+                case (int)$groupedProductFixture->getId() === $indexingEntity->getTargetId()
                     && $this->fixtureApiKeys[2] === $indexingEntity->getApiKey():
                     $this->assertTrue(
                         condition: $indexingEntity->getRequiresUpdate(),
+                        message: $message,
                     );
                     $requiresUpdateOrigValues = $indexingEntity->getRequiresUpdateOrigValues();
                     $this->assertCount(
                         expectedCount: 1,
                         haystack: $requiresUpdateOrigValues,
+                        message: $message,
                     );
                     $this->assertArrayHasKey(
                         key: StockStatusCriteria::CRITERIA_IDENTIFIER,
                         array: $requiresUpdateOrigValues,
+                        message: $message,
                     );
                     $this->assertTrue(
                         condition: $requiresUpdateOrigValues[StockStatusCriteria::CRITERIA_IDENTIFIER],
+                        message: $message,
                     );
                     break;
 
@@ -646,27 +737,33 @@ class SetRequiresUpdatePluginTest extends TestCase
                     && $this->fixtureApiKeys[2] === $indexingEntity->getApiKey():
                     $this->assertTrue(
                         condition: $indexingEntity->getRequiresUpdate(),
+                        message: $message,
                     );
                     $requiresUpdateOrigValues = $indexingEntity->getRequiresUpdateOrigValues();
                     $this->assertCount(
                         expectedCount: 1,
                         haystack: $requiresUpdateOrigValues,
+                        message: $message,
                     );
                     $this->assertArrayHasKey(
                         key: StockStatusCriteria::CRITERIA_IDENTIFIER,
                         array: $requiresUpdateOrigValues,
+                        message: $message,
                     );
                     $this->assertFalse(
                         condition: $requiresUpdateOrigValues[StockStatusCriteria::CRITERIA_IDENTIFIER],
+                        message: $message,
                     );
                     break;
 
                 default:
                     $this->assertFalse(
                         condition: $indexingEntity->getRequiresUpdate(),
+                        message: $message,
                     );
                     $this->assertEmpty(
                         actual: $indexingEntity->getRequiresUpdateOrigValues(),
+                        message: $message,
                     );
                     break;
             }
@@ -703,11 +800,16 @@ class SetRequiresUpdatePluginTest extends TestCase
             product: $variantProductFixtures[1],
             sources: [
                 $sourceAndStockFixtures[1]['source'],
+                $sourceAndStockFixtures[2]['source'],
             ],
             stockInformation: [
                 $sourceAndStockFixtures[1]['source']->getSourceCode() => [
-                    'quantity' => 1,
+                    'quantity' => 100,
                     'status' => 1,
+                ],
+                $sourceAndStockFixtures[2]['source']->getSourceCode() => [
+                    'quantity' => 0,
+                    'status' => 0,
                 ],
             ],
         );
@@ -722,11 +824,16 @@ class SetRequiresUpdatePluginTest extends TestCase
             product: $variantProductFixtures[2],
             sources: [
                 $sourceAndStockFixtures[2]['source'],
+                $sourceAndStockFixtures[3]['source'],
             ],
             stockInformation: [
                 $sourceAndStockFixtures[2]['source']->getSourceCode() => [
-                    'quantity' => 1,
+                    'quantity' => 100,
                     'status' => 1,
+                ],
+                $sourceAndStockFixtures[3]['source']->getSourceCode() => [
+                    'quantity' => 0,
+                    'status' => 0,
                 ],
             ],
         );
@@ -832,17 +939,24 @@ class SetRequiresUpdatePluginTest extends TestCase
             );
         }
 
-        /** @var BulkSourceAssignInterface $bulkSourceAssign */
-        $bulkSourceAssign = $this->objectManager->create(BulkSourceAssignInterface::class);
-        $bulkSourceAssign->execute(
+        /** @var BulkInventoryTransferInterface $bulkInventoryTransfer */
+        $bulkInventoryTransfer = $this->objectManager->create(BulkInventoryTransferInterface::class);
+        $bulkInventoryTransfer->execute(
             skus: [
                 $variantProductFixtures[1]->getSku(),
             ],
-            sourceCodes: [
-                $sourceAndStockFixtures[2]['source']->getSourceCode(),
-            ],
+            originSource: $sourceAndStockFixtures[1]['source']->getSourceCode(),
+            destinationSource: $sourceAndStockFixtures[3]['source']->getSourceCode(),
+            unassignFromOrigin: false,
         );
-
+        $bulkInventoryTransfer->execute(
+            skus: [
+                $variantProductFixtures[1]->getSku(),
+            ],
+            originSource: $sourceAndStockFixtures[2]['source']->getSourceCode(),
+            destinationSource: $sourceAndStockFixtures[3]['source']->getSourceCode(),
+            unassignFromOrigin: false,
+        );
 
         $indexingEntities = $this->indexingEntityProvider->get(
             entityType: 'KLEVU_PRODUCT',
@@ -850,37 +964,58 @@ class SetRequiresUpdatePluginTest extends TestCase
             entityIds: [
                 (int)$variantProductFixtures[1]->getId(),
                 (int)$variantProductFixtures[2]->getId(),
-                (int)$variantProductFixtures[3]->getId(),
                 (int)$bundleProductFixture->getId(),
             ],
         );
         $this->assertCount(
-            expectedCount: 8,
+            expectedCount: 6,
             haystack: $indexingEntities,
         );
         foreach ($indexingEntities as $indexingEntity) {
+            $message = sprintf(
+                'Product: %s; website: %s',
+                match ($indexingEntity->getTargetId()) {
+                    (int)$variantProductFixtures[1]->getId() => 'v1',
+                    (int)$variantProductFixtures[2]->getId() => 'v2',
+                    (int)$bundleProductFixture->getId() => 'g1',
+                },
+                match ($indexingEntity->getApiKey()) {
+                    $this->fixtureApiKeys[1] => 'w1',
+                    $this->fixtureApiKeys[2] => 'w2',
+                },
+            );
+
             $this->assertSame(
                 expected: Actions::NO_ACTION,
                 actual: $indexingEntity->getNextAction(),
+                message: $message,
             );
 
             switch (true) {
                 case (int)$bundleProductFixture->getId() === $indexingEntity->getTargetId()
+                    && $this->fixtureApiKeys[1] === $indexingEntity->getApiKey():
+                case (int)$variantProductFixtures[1]->getId() === $indexingEntity->getTargetId()
+                    && $this->fixtureApiKeys[1] === $indexingEntity->getApiKey():
+                case (int)$bundleProductFixture->getId() === $indexingEntity->getTargetId()
                     && $this->fixtureApiKeys[2] === $indexingEntity->getApiKey():
                     $this->assertTrue(
                         condition: $indexingEntity->getRequiresUpdate(),
+                        message: $message,
                     );
                     $requiresUpdateOrigValues = $indexingEntity->getRequiresUpdateOrigValues();
                     $this->assertCount(
                         expectedCount: 1,
                         haystack: $requiresUpdateOrigValues,
+                        message: $message,
                     );
                     $this->assertArrayHasKey(
                         key: StockStatusCriteria::CRITERIA_IDENTIFIER,
                         array: $requiresUpdateOrigValues,
+                        message: $message,
                     );
                     $this->assertTrue(
                         condition: $requiresUpdateOrigValues[StockStatusCriteria::CRITERIA_IDENTIFIER],
+                        message: $message,
                     );
                     break;
 
@@ -888,27 +1023,33 @@ class SetRequiresUpdatePluginTest extends TestCase
                     && $this->fixtureApiKeys[2] === $indexingEntity->getApiKey():
                     $this->assertTrue(
                         condition: $indexingEntity->getRequiresUpdate(),
+                        message: $message,
                     );
                     $requiresUpdateOrigValues = $indexingEntity->getRequiresUpdateOrigValues();
                     $this->assertCount(
                         expectedCount: 1,
                         haystack: $requiresUpdateOrigValues,
+                        message: $message,
                     );
                     $this->assertArrayHasKey(
                         key: StockStatusCriteria::CRITERIA_IDENTIFIER,
                         array: $requiresUpdateOrigValues,
+                        message: $message,
                     );
                     $this->assertFalse(
                         condition: $requiresUpdateOrigValues[StockStatusCriteria::CRITERIA_IDENTIFIER],
+                        message: $message,
                     );
                     break;
 
                 default:
                     $this->assertFalse(
                         condition: $indexingEntity->getRequiresUpdate(),
+                        message: $message,
                     );
                     $this->assertEmpty(
                         actual: $indexingEntity->getRequiresUpdateOrigValues(),
+                        message: $message,
                     );
                     break;
             }
@@ -977,17 +1118,23 @@ class SetRequiresUpdatePluginTest extends TestCase
             websiteIds: [
                 (int)$websiteAndStoreFixtures[1]['website']->getId(),
                 (int)$websiteAndStoreFixtures[2]['website']->getId(),
+                (int)$websiteAndStoreFixtures[3]['website']->getId(),
             ],
         );
         $this->assignProductToSources(
             product: $variantProductFixtures[3],
             sources: [
+                $sourceAndStockFixtures[2]['source'],
                 $sourceAndStockFixtures[3]['source'],
             ],
             stockInformation: [
-                $sourceAndStockFixtures[3]['source']->getSourceCode() => [
+                $sourceAndStockFixtures[2]['source']->getSourceCode() => [
                     'quantity' => 1,
                     'status' => 1,
+                ],
+                $sourceAndStockFixtures[3]['source']->getSourceCode() => [
+                    'quantity' => 0,
+                    'status' => 0,
                 ],
             ],
         );
@@ -1074,15 +1221,15 @@ class SetRequiresUpdatePluginTest extends TestCase
             );
         }
 
-        /** @var BulkSourceAssignInterface $bulkSourceAssign */
-        $bulkSourceAssign = $this->objectManager->create(BulkSourceAssignInterface::class);
-        $bulkSourceAssign->execute(
+        /** @var BulkInventoryTransferInterface $bulkInventoryTransfer */
+        $bulkInventoryTransfer = $this->objectManager->create(BulkInventoryTransferInterface::class);
+        $bulkInventoryTransfer->execute(
             skus: [
                 $variantProductFixtures[3]->getSku(),
             ],
-            sourceCodes: [
-                $sourceAndStockFixtures[2]['source']->getSourceCode(),
-            ],
+            originSource: $sourceAndStockFixtures[2]['source']->getSourceCode(),
+            destinationSource: $sourceAndStockFixtures[3]['source']->getSourceCode(),
+            unassignFromOrigin: false,
         );
 
         $indexingEntities = $this->indexingEntityProvider->get(
@@ -1091,18 +1238,31 @@ class SetRequiresUpdatePluginTest extends TestCase
             entityIds: [
                 (int)$variantProductFixtures[1]->getId(),
                 (int)$variantProductFixtures[2]->getId(),
-                (int)$variantProductFixtures[3]->getId(),
                 (int)$bundleProductFixture->getId(),
             ],
         );
         $this->assertCount(
-            expectedCount: 8,
+            expectedCount: 6,
             haystack: $indexingEntities,
         );
         foreach ($indexingEntities as $indexingEntity) {
+            $message = sprintf(
+                'Product: %s; website: %s',
+                match ($indexingEntity->getTargetId()) {
+                    (int)$variantProductFixtures[1]->getId() => 'v1',
+                    (int)$variantProductFixtures[2]->getId() => 'v2',
+                    (int)$bundleProductFixture->getId() => 'g1',
+                },
+                match ($indexingEntity->getApiKey()) {
+                    $this->fixtureApiKeys[1] => 'w1',
+                    $this->fixtureApiKeys[2] => 'w2',
+                },
+            );
+
             $this->assertSame(
                 expected: Actions::NO_ACTION,
                 actual: $indexingEntity->getNextAction(),
+                message: $message,
             );
 
             switch (true) {
@@ -1112,18 +1272,22 @@ class SetRequiresUpdatePluginTest extends TestCase
                     && $this->fixtureApiKeys[2] === $indexingEntity->getApiKey():
                     $this->assertTrue(
                         condition: $indexingEntity->getRequiresUpdate(),
+                        message: $message,
                     );
                     $requiresUpdateOrigValues = $indexingEntity->getRequiresUpdateOrigValues();
                     $this->assertCount(
                         expectedCount: 1,
                         haystack: $requiresUpdateOrigValues,
+                        message: $message,
                     );
                     $this->assertArrayHasKey(
                         key: StockStatusCriteria::CRITERIA_IDENTIFIER,
                         array: $requiresUpdateOrigValues,
+                        message: $message,
                     );
                     $this->assertTrue(
                         condition: $requiresUpdateOrigValues[StockStatusCriteria::CRITERIA_IDENTIFIER],
+                        message: $message,
                     );
                     break;
 
@@ -1131,27 +1295,33 @@ class SetRequiresUpdatePluginTest extends TestCase
                     && $this->fixtureApiKeys[2] === $indexingEntity->getApiKey():
                     $this->assertTrue(
                         condition: $indexingEntity->getRequiresUpdate(),
+                        message: $message,
                     );
                     $requiresUpdateOrigValues = $indexingEntity->getRequiresUpdateOrigValues();
                     $this->assertCount(
                         expectedCount: 1,
                         haystack: $requiresUpdateOrigValues,
+                        message: $message,
                     );
                     $this->assertArrayHasKey(
                         key: StockStatusCriteria::CRITERIA_IDENTIFIER,
                         array: $requiresUpdateOrigValues,
+                        message: $message,
                     );
                     $this->assertFalse(
                         condition: $requiresUpdateOrigValues[StockStatusCriteria::CRITERIA_IDENTIFIER],
+                        message: $message,
                     );
                     break;
 
                 default:
                     $this->assertFalse(
                         condition: $indexingEntity->getRequiresUpdate(),
+                        message: $message,
                     );
                     $this->assertEmpty(
                         actual: $indexingEntity->getRequiresUpdateOrigValues(),
+                        message: $message,
                     );
                     break;
             }

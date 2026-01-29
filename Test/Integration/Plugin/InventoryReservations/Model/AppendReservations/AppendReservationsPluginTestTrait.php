@@ -263,6 +263,9 @@ trait AppendReservationsPluginTestTrait
         $this->storeFixturesPool = $this->objectManager->get(StoreFixturesPool::class);
         $this->websiteFixturesPool = $this->objectManager->get(WebsiteFixturesPool::class);
 
+        $this->storeRepository = $this->objectManager->get(StoreRepositoryInterface::class);
+        $this->storeResource = $this->objectManager->get(StoreResource::class);
+
         $this->appendReservations = $this->objectManager->create(AppendReservationsInterface::class);
         $this->configWriter = $this->objectManager->get(ConfigWriter::class);
         $this->reservationFactory = $this->objectManager->get(ReservationInterfaceFactory::class);
@@ -307,8 +310,6 @@ trait AppendReservationsPluginTestTrait
         $this->storeGroupResource = $this->objectManager->get(StoreGroupResource::class);
         $this->storeGroupFactory = $this->objectManager->get(StoreGroupFactory::class);
 
-        $this->storeRepository = $this->objectManager->get(StoreRepositoryInterface::class);
-        $this->storeResource = $this->objectManager->get(StoreResource::class);
         $this->storeFactory = $this->objectManager->get(StoreFactory::class);
 
         $this->sourceRepository = $this->objectManager->get(SourceRepositoryInterface::class);
