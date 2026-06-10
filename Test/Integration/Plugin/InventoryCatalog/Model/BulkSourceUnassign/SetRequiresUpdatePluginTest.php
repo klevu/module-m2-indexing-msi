@@ -299,19 +299,19 @@ class SetRequiresUpdatePluginTest extends TestCase
         );
 
         $configurableProductFixture = $this->createConfigurableProductFixture(1);
-        $this->assignProductToWebsites(
-            product: $configurableProductFixture,
-            websiteIds: [
-                (int)$websiteAndStoreFixtures[1]['website']->getId(),
-                (int)$websiteAndStoreFixtures[2]['website']->getId(),
-            ],
-        );
         $this->assignConfigurableVariantsToProduct(
             configurableProduct: $configurableProductFixture,
             configurableAttributes: [
                 $configurableAttribute->getAttributeCode() => $configurableAttribute,
             ],
             variantProducts: $variantProductFixtures,
+        );
+        $this->assignProductToWebsites(
+            product: $configurableProductFixture,
+            websiteIds: [
+                (int)$websiteAndStoreFixtures[1]['website']->getId(),
+                (int)$websiteAndStoreFixtures[2]['website']->getId(),
+            ],
         );
 
         foreach ($this->fixtureApiKeys as $apiKey) {
@@ -529,18 +529,18 @@ class SetRequiresUpdatePluginTest extends TestCase
         );
 
         $groupedProductFixture = $this->createGroupedProductFixture(1);
-        $this->assignProductToWebsites(
-            product: $groupedProductFixture,
-            websiteIds: [
-                (int)$websiteAndStoreFixtures[1]['website']->getId(),
-                (int)$websiteAndStoreFixtures[2]['website']->getId(),
-            ],
-        );
         $groupedProductFixture = $this->assignGroupedVariantsToProduct(
             groupedProduct: $groupedProductFixture,
             variantProducts: [
                 $variantProductFixtures[1],
                 $variantProductFixtures[2],
+            ],
+        );
+        $this->assignProductToWebsites(
+            product: $groupedProductFixture,
+            websiteIds: [
+                (int)$websiteAndStoreFixtures[1]['website']->getId(),
+                (int)$websiteAndStoreFixtures[2]['website']->getId(),
             ],
         );
         foreach ($this->fixtureApiKeys as $apiKey) {
@@ -757,13 +757,6 @@ class SetRequiresUpdatePluginTest extends TestCase
         );
 
         $bundleProductFixture = $this->createBundleProductFixture(1);
-        $this->assignProductToWebsites(
-            product: $bundleProductFixture,
-            websiteIds: [
-                (int)$websiteAndStoreFixtures[1]['website']->getId(),
-                (int)$websiteAndStoreFixtures[2]['website']->getId(),
-            ],
-        );
         $bundleProductFixture = $this->assignBundleOptionVariantsToProduct(
             product: $bundleProductFixture,
             bundleOptionVariants: [
@@ -774,6 +767,13 @@ class SetRequiresUpdatePluginTest extends TestCase
                 'optional' => [
                     $variantProductFixtures[3],
                 ],
+            ],
+        );
+        $this->assignProductToWebsites(
+            product: $bundleProductFixture,
+            websiteIds: [
+                (int)$websiteAndStoreFixtures[1]['website']->getId(),
+                (int)$websiteAndStoreFixtures[2]['website']->getId(),
             ],
         );
         foreach ($this->fixtureApiKeys as $apiKey) {
@@ -998,13 +998,6 @@ class SetRequiresUpdatePluginTest extends TestCase
         );
 
         $bundleProductFixture = $this->createBundleProductFixture(1);
-        $this->assignProductToWebsites(
-            product: $bundleProductFixture,
-            websiteIds: [
-                (int)$websiteAndStoreFixtures[1]['website']->getId(),
-                (int)$websiteAndStoreFixtures[2]['website']->getId(),
-            ],
-        );
         $bundleProductFixture = $this->assignBundleOptionVariantsToProduct(
             product: $bundleProductFixture,
             bundleOptionVariants: [
@@ -1015,6 +1008,13 @@ class SetRequiresUpdatePluginTest extends TestCase
                 'optional' => [
                     $variantProductFixtures[3],
                 ],
+            ],
+        );
+        $this->assignProductToWebsites(
+            product: $bundleProductFixture,
+            websiteIds: [
+                (int)$websiteAndStoreFixtures[1]['website']->getId(),
+                (int)$websiteAndStoreFixtures[2]['website']->getId(),
             ],
         );
         foreach ($this->fixtureApiKeys as $apiKey) {
